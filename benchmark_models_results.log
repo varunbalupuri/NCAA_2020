@@ -1,0 +1,110 @@
+------ 2009 ------ Diff_AdjEM    26.919448
+Diff_Luck     15.985187
+Diff_AdjO     12.706246
+Diff_OppD      9.766763
+Diff_AdjD      8.766363
+Diff_OppO      8.536683
+Diff_AdjT      6.761387
+Team2Home      5.644027
+Team1Home      4.913895
+dtype: float64{'learn': {'Logloss': 0.3356468362445104}, 'validation': {'Logloss': 0.4251704601773114}}
+------ 2010 ------ Diff_AdjEM    33.205133
+Diff_Luck     12.281354
+Diff_AdjO     11.332197
+Diff_AdjD      9.171758
+Team1Home      8.509781
+Diff_OppO      8.402314
+Diff_AdjT      6.064100
+Diff_OppD      6.048153
+Team2Home      4.985210
+dtype: float64{'learn': {'Logloss': 0.32654788925885087}, 'validation': {'Logloss': 0.4622029008334733}}
+------ 2011 ------ Diff_AdjEM    40.286538
+Diff_Luck     12.415902
+Team2Home     11.962369
+Diff_AdjO      9.761511
+Diff_OppO      6.630252
+Diff_AdjD      6.337101
+Team1Home      5.625259
+Diff_AdjT      3.872559
+Diff_OppD      3.108510
+dtype: float64{'learn': {'Logloss': 0.3361130786791272}, 'validation': {'Logloss': 0.5519306773967004}}
+------ 2012 ------ Diff_AdjEM    54.486112
+Team2Home     11.735602
+Team1Home      9.955519
+Diff_Luck      9.561701
+Diff_AdjO      5.384473
+Diff_AdjD      3.848343
+Diff_OppO      3.036555
+Diff_OppD      1.739403
+Diff_AdjT      0.252291
+dtype: float64{'learn': {'Logloss': 0.31845428334969195}, 'validation': {'Logloss': 0.5025271471740214}}
+------ 2013 ------ Diff_AdjEM    36.549641
+Diff_AdjD     12.976498
+Team1Home     11.063711
+Diff_Luck     10.674067
+Diff_AdjO     10.499234
+Team2Home      8.068385
+Diff_OppD      4.727627
+Diff_OppO      3.067031
+Diff_AdjT      2.373806
+dtype: float64{'learn': {'Logloss': 0.34177540999098843}, 'validation': {'Logloss': 0.5197211051170751}}
+------ 2014 ------ Diff_AdjEM    40.494656
+Diff_Luck     11.404217
+Diff_AdjO     10.451510
+Diff_AdjD     10.041746
+Team2Home      7.629540
+Diff_OppO      6.490328
+Diff_OppD      5.876832
+Team1Home      4.358487
+Diff_AdjT      3.252684
+dtype: float64{'learn': {'Logloss': 0.34495733317986116}, 'validation': {'Logloss': 0.48465052541634795}}
+------ 2015 ------ Diff_AdjEM    51.596139
+Team1Home     12.719017
+Diff_Luck     10.587451
+Diff_AdjO      7.449125
+Team2Home      7.127859
+Diff_AdjD      6.855564
+Diff_OppD      1.499099
+Diff_OppO      1.235293
+Diff_AdjT      0.930453
+dtype: float64{'learn': {'Logloss': 0.3483883954643573}, 'validation': {'Logloss': 0.4602525382628061}}
+------ 2016 ------ Diff_AdjEM    45.190169
+Team1Home     11.749231
+Diff_AdjO     11.132566
+Diff_Luck     10.535187
+Diff_AdjD      9.056614
+Team2Home      7.002204
+Diff_OppO      3.110943
+Diff_OppD      1.375313
+Diff_AdjT      0.847773
+dtype: float64{'learn': {'Logloss': 0.341073044254718}, 'validation': {'Logloss': 0.49460701322513934}}
+------ 2017 ------ Diff_AdjEM    39.225978
+Diff_AdjO     12.766435
+Diff_Luck      9.774234
+Diff_AdjD      9.702329
+Team1Home      8.290786
+Diff_OppD      6.722282
+Team2Home      5.646315
+Diff_AdjT      4.450594
+Diff_OppO      3.421048
+dtype: float64{'learn': {'Logloss': 0.346541375420803}, 'validation': {'Logloss': 0.4361872517491178}}
+------ 2018 ------ Diff_AdjEM    45.536806
+Team2Home     11.088038
+Diff_Luck     10.333957
+Diff_AdjO      9.987085
+Diff_AdjD      6.913250
+Team1Home      6.627104
+Diff_OppD      4.072014
+Diff_OppO      3.192290
+Diff_AdjT      2.249456
+dtype: float64{'learn': {'Logloss': 0.35077733346908757}, 'validation': {'Logloss': 0.49186768079416976}}
+------ 2019 ------ Diff_AdjEM    31.494239
+Diff_AdjO     13.616996
+Diff_Luck     11.640220
+Diff_AdjD     10.406375
+Diff_OppD      8.313216
+Diff_AdjT      7.849480
+Diff_OppO      7.739000
+Team2Home      5.104034
+Team1Home      3.836441
+dtype: float64{'learn': {'Logloss': 0.35299471047359554}, 'validation': {'Logloss': 0.3773915050756212}}
