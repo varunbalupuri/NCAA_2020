@@ -1,3 +1,5 @@
+import argparse
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,8 +8,8 @@ from catboost import CatBoostClassifier, Pool, cv
 
 YEAR = 2019
 
-def create_train_test_dfs(results, kenpoms):
-    mean_kenpoms = kenpoms[['AdjEM', 'AdjO', 'AdjD', 'AdjT', 'Luck', 'OppO', 'OppD']].mean()
+
+def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds):
     l = []
     errors = []
     for _, row in results.iterrows():
@@ -63,9 +65,42 @@ def create_train_test_dfs(results, kenpoms):
         Diff_AdjO = team1_kenpoms['AdjO'] - team2_kenpoms['AdjO']
         Diff_AdjD = team1_kenpoms['AdjD'] - team2_kenpoms['AdjD']
         Diff_AdjT = team1_kenpoms['AdjT'] - team2_kenpoms['AdjT']
-        #Diff_Luck = team1_kenpoms['Luck'] - team2_kenpoms['Luck']
+        Diff_Luck = team1_kenpoms['Luck'] - team2_kenpoms['Luck']
         Diff_OppO = team1_kenpoms['OppO'] - team2_kenpoms['OppO']
         Diff_OppD = team1_kenpoms['OppD'] - team2_kenpoms['OppD']
+
+        # massey ordinals
+        try:
+            team1_massey = massey_ordinals[
+                (massey_ordinals['RankingDayNum'] < row['DayNum']) &
+                (massey_ordinals['TeamID'] == team1)
+                ].groupby('RankingDayNum').mean().idxmax()['OrdinalRank']
+        except Exception:
+            team1_massey = \
+            massey_ordinals[(massey_ordinals['TeamID'] == team1)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
+
+        try:
+            team2_massey = massey_ordinals[
+                (massey_ordinals['RankingDayNum'] < row['DayNum']) &
+                (massey_ordinals['TeamID'] == team2)
+                ].groupby('RankingDayNum').mean().idxmax()['OrdinalRank']
+
+        except Exception:
+            team2_massey = \
+            massey_ordinals[(massey_ordinals['TeamID'] == team2)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
+
+        Diff_MasseyOrdinal = team1_massey - team2_massey
+
+        try:
+            team1_seed = seeds[seeds['TeamID'] == team1].iloc[0]['seednumber']
+        except:
+            team1_seed = 16
+        try:
+            team2_seed = seeds[seeds['TeamID'] == team2].iloc[0]['seednumber']
+        except:
+            team2_seed = 16
+
+        Diff_seeds = team1_seed - team2_seed
 
         row = {
             # 'Team1ID': team1,
@@ -80,9 +115,13 @@ def create_train_test_dfs(results, kenpoms):
             'Diff_AdjO': Diff_AdjO,
             'Diff_AdjD': Diff_AdjD,
             'Diff_AdjT': Diff_AdjT,
-            #'Diff_Luck': Diff_Luck,
+            # 'Diff_Luck':Diff_Luck,
             'Diff_OppO': Diff_OppO,
-            'Diff_OppD': Diff_OppD
+            'Diff_OppD': Diff_OppD,
+
+            'Diff_MasseyOrdinal': Diff_MasseyOrdinal,
+            'Diff_seeds': Diff_seeds
+
         }
 
         l.append(row)
@@ -96,18 +135,33 @@ def create_train_test_dfs(results, kenpoms):
     return X, y
 
 
-def train(year=2019):
+def train(year=2019, kenpom_lag=False, all_years=False):
     NCAA_tournament_results = pd.read_csv('data/mens/MNCAATourneyCompactResults.csv')
     NCAA_tournament_results = NCAA_tournament_results[NCAA_tournament_results['Season'] == year]
 
     NCAA_season_results = pd.read_csv('data/mens/MRegularSeasonCompactResults.csv')
     NCAA_season_results = NCAA_season_results[NCAA_season_results['Season'] == year]
 
-    kenpoms = pd.read_csv(f'data/mens/kenpoms_{year}.csv')
+    # kenpoms
+    if kenpom_lag:
+        k_year = year-1
+    else:
+        k_year = year
+    kenpoms = pd.read_csv(f'data/mens/kenpoms_{k_year}.csv')
     kenpoms['TeamID'] = kenpoms['TeamID'].apply(lambda x: int(x))
 
-    X_train, y_train = create_train_test_dfs(NCAA_season_results, kenpoms)
-    X_test, y_test = create_train_test_dfs(NCAA_tournament_results, kenpoms)
+    # massey ordinals
+    massey_ordinals = pd.read_csv('data/mens/MMasseyOrdinals.csv')
+    massey_ordinals = massey_ordinals[massey_ordinals['Season'] == year]
+
+    # seeds
+    seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
+    seeds = seeds[seeds['Season'] == year]
+    seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
+    seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
+
+    X_train, y_train = create_train_test_dfs(NCAA_season_results, kenpoms, massey_ordinals, seeds)
+    X_test, y_test = create_train_test_dfs(NCAA_tournament_results, kenpoms, massey_ordinals, seeds)
 
     categorical_idxs = [0, 1]
     model = CatBoostClassifier(custom_loss=['Logloss'], logging_level='Verbose')
@@ -117,7 +171,7 @@ def train(year=2019):
                                              model.get_feature_importance()))).sort_values(ascending=False)
     scores = model.get_best_score()
 
-    with open('benchmark_models_results.log', 'a') as f:
+    with open('benchmark2_models_results.log', 'a') as f:
         f.write(f'------ {year} ------ ')
         f.write(str(feature_importances))
         f.write(str(scores))
@@ -125,5 +179,57 @@ def train(year=2019):
 
     return model
 
-for year in range(2009,2020):
-    train(year)
+def train_giant_model():
+    X_trains = []
+    y_trains = []
+    X_tests = []
+    y_tests = []
+    for year in range(2010, 2020):
+        NCAA_tournament_results = pd.read_csv('data/mens/MNCAATourneyCompactResults.csv')
+        NCAA_tournament_results = NCAA_tournament_results[NCAA_tournament_results['Season'] == year]
+
+        NCAA_season_results = pd.read_csv('data/mens/MRegularSeasonCompactResults.csv')
+        NCAA_season_results = NCAA_season_results[NCAA_season_results['Season'] == year]
+
+        # # kenpoms
+        # if kenpom_lag:
+        #     k_year = year - 1
+        # else:
+        #     k_year = year
+        kenpoms = pd.read_csv(f'data/mens/kenpoms_{year}.csv')
+        kenpoms['TeamID'] = kenpoms['TeamID'].apply(lambda x: int(x))
+
+        # massey ordinals
+        massey_ordinals = pd.read_csv('data/mens/MMasseyOrdinals.csv')
+        massey_ordinals = massey_ordinals[massey_ordinals['Season'] == year]
+
+        # seeds
+        seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
+        seeds = seeds[seeds['Season'] == year]
+        seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
+        seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
+
+        X_train, y_train = create_train_test_dfs(NCAA_season_results, kenpoms, massey_ordinals, seeds)
+        X_test, y_test = create_train_test_dfs(NCAA_tournament_results, kenpoms, massey_ordinals, seeds)
+
+        X_trains.append(X_train)
+        y_trains.append(y_train)
+        X_tests.append(X_test)
+        y_tests.append(y_test)
+
+    X_train = pd.concat(X_trains)
+    y_train = pd.concat(y_trains)
+    X_test = pd.concat(X_tests)
+    y_test = pd.concat(y_tests)
+
+    return X_train, y_train, X_test, y_test
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--year', default=2019)
+    parser.add_argument('--kenpom_lag', default=False, action='store_true')
+    parser.add_argument('--all_years', default=False, action='store_true')
+
+    args = parser.parse_args()
+
+    if args.all_years:
