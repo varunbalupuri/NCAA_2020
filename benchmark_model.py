@@ -26,6 +26,16 @@ def generate_season_statistics(detailed_match_results, season):
     return pd.DataFrame(d).T
 
 
+def last_14_day_win_rate(teamid, detailed_match_results):
+    winning_games = detailed_match_results[(detailed_match_results['WTeamID'] == teamid) &
+                                           (detailed_match_results['DayNum'] > 118) ].shape[0]
+    losing_games = detailed_match_results[(detailed_match_results['LTeamID'] == teamid) &
+                                           (detailed_match_results['DayNum'] > 118) ].shape[0]
+    try:
+        return winning_games / (winning_games + losing_games)
+    except ZeroDivisionError:
+        return 0
+
 def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats):
     l = []
     errors = []
@@ -129,6 +139,10 @@ def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats
 
             Diff_seeds = team1_seed - team2_seed
 
+            #winrate
+            t1_winrate_14_days = last_14_day_win_rate(team1, results)
+
+
             new_row = {
                 # 'Team1ID': team1,
                 # 'Team2ID': team2,
@@ -145,6 +159,8 @@ def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats
                 'Diff_Luck': Diff_Luck,
                 'Diff_OppO': Diff_OppO,
                 'Diff_OppD': Diff_OppD,
+
+                'Team1WinRate': t1_winrate_14_days,
 
                 'Diff_MasseyOrdinal': Diff_MasseyOrdinal,
                 'Diff_seeds': Diff_seeds
@@ -209,12 +225,13 @@ def train(year=2019, kenpom_lag=False, all_years=False):
     return model
 
 
-def train_giant_model():
+def train_giant_model(start_year=2010, end_year=2019):
     X_trains = []
     y_trains = []
     X_tests = []
     y_tests = []
-    for year in range(2010, 2018):
+    for year in range(start_year, end_year+1):
+        print(year)
         NCAA_tournament_results = pd.read_csv('data/mens/MNCAATourneyDetailedResults.csv')
         NCAA_tournament_results = NCAA_tournament_results[NCAA_tournament_results['Season'] == year]
 
