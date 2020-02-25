@@ -42,8 +42,45 @@ def last_14_day_win_rates(detailed_match_results):
         d[teamid] = wr
     return d
 
+def _get_massey_ordinal(system, team, daynum, massey_ordinals):
+    try:
+        massey = massey_ordinals[
+            (massey_ordinals['RankingDayNum'] < daynum) &
+            (massey_ordinals['TeamID'] == team)
+            ].groupby('RankingDayNum').mean().idxmax()['OrdinalRank']
+    except Exception:
+        massey = \
+            massey_ordinals[(massey_ordinals['TeamID'] == team)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
+    return massey
 
-def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats, winrates):
+
+def lagged_seedscore(full_seeds, year):
+    teamids = list(
+        set(full_seeds['TeamID'].unique().tolist())
+    )
+    d = {}
+    for teamid in teamids:
+        try:
+            seed_y__minus_1 = float(full_seeds[(full_seeds['Season'] == year -1) &
+                                               (full_seeds['TeamID'] == teamid)]['seednumber'].iloc[0])
+        except Exception:
+            seed_y__minus_1 = 16
+        try:
+            seed_y__minus_2 = float(full_seeds[(full_seeds['Season'] == year -2) &
+                                               (full_seeds['TeamID'] == teamid)]['seednumber'].iloc[0])
+        except Exception:
+            seed_y__minus_2 = 16
+        try:
+            seed_y__minus_3 = float(full_seeds[(full_seeds['Season'] == year -3) &
+                                               (full_seeds['TeamID'] == teamid)]['seednumber'].iloc[0])
+        except Exception:
+            seed_y__minus_3 = 16
+
+        d[teamid] =  (seed_y__minus_1 + 0.5 * seed_y__minus_2 + 0.33 * seed_y__minus_3)
+    return d
+
+
+def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats, winrates, lagged_seeds):
     l = []
     errors = []
     mean_kenpoms = kenpoms[['AdjEM','AdjO','AdjD','AdjT','Luck','OppO','OppD']].mean()
@@ -114,24 +151,10 @@ def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats
             diff_stats = t1_stats - t2_stats
 
             # massey ordinals
-            try:
-                team1_massey = massey_ordinals[
-                    (massey_ordinals['RankingDayNum'] < row['DayNum']) &
-                    (massey_ordinals['TeamID'] == team1)
-                    ].groupby('RankingDayNum').mean().idxmax()['OrdinalRank']
-            except Exception:
-                team1_massey = \
-                massey_ordinals[(massey_ordinals['TeamID'] == team1)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
-
-            try:
-                team2_massey = massey_ordinals[
-                    (massey_ordinals['RankingDayNum'] < row['DayNum']) &
-                    (massey_ordinals['TeamID'] == team2)
-                    ].groupby('RankingDayNum').mean().idxmax()['OrdinalRank']
-
-            except Exception:
-                team2_massey = \
-                massey_ordinals[(massey_ordinals['TeamID'] == team2)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
+            team1_massey = _get_massey_ordinal(system=None, team=team1,
+                                               daynum=row['DayNum'], massey_ordinals=massey_ordinals)
+            team2_massey = _get_massey_ordinal(system=None, team=team2,
+                                               daynum=row['DayNum'], massey_ordinals=massey_ordinals)
 
             Diff_MasseyOrdinal = team1_massey - team2_massey
 
@@ -149,7 +172,17 @@ def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats
             #winrate
             t1_winrate_14_days = winrates[team1]
             t2_winrate_14_days = winrates[team2]
-
+            try:
+                t1_lagged_seed = lagged_seeds[team1]
+            except KeyError:
+                # print(f'{team1} not found in lagged_seeds')
+                t1_lagged_seed = 16 + 0.5*16 + 0.33*16
+            try:
+                t2_lagged_seed = lagged_seeds[team2]
+            except KeyError:
+                # print(f'{team2} not found in lagged_seeds')
+                t2_lagged_seed = 16 + 0.5 * 16 + 0.33 * 16
+            Diff_lagged_seed = t1_lagged_seed - t2_lagged_seed
 
             new_row = {
                 # 'Team1ID': team1,
@@ -169,7 +202,8 @@ def create_train_test_dfs(results, kenpoms, massey_ordinals, seeds, season_stats
                 'Team1WinRate': t1_winrate_14_days,
                 'Team2WinRate': t2_winrate_14_days,
                 'Diff_MasseyOrdinal': Diff_MasseyOrdinal,
-                'Diff_seeds': Diff_seeds
+                'Diff_seeds': Diff_seeds,
+                'Diff_lagged_seed': Diff_lagged_seed,
             }
             new_row.update(diff_stats)
             l.append(new_row)
@@ -197,7 +231,10 @@ def train(year=2019, kenpom_lag=False, all_years=False):
         k_year = year-1
     else:
         k_year = year
-    kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{k_year}.csv')
+    try:
+        kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{k_year}.csv')
+    except Exception:
+        kenpoms = pd.read_csv(f'data/mens/kenpoms_{k_year}.csv')
     kenpoms['TeamID'] = kenpoms['TeamID'].apply(lambda x: int(x))
 
     # massey ordinals
@@ -206,16 +243,16 @@ def train(year=2019, kenpom_lag=False, all_years=False):
 
     # seeds
     seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
-    seeds = seeds[seeds['Season'] == year]
     seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
     seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
-
+    lagged_seeds = lagged_seedscore(seeds, year)
+    seeds = seeds[seeds['Season'] == year]
     winrates = last_14_day_win_rates(NCAA_season_results)
 
     X_train, y_train = create_train_test_dfs(NCAA_season_results, kenpoms, massey_ordinals,
-                                             seeds, season_stats, winrates)
+                                             seeds, season_stats, winrates, lagged_seeds)
     X_test, y_test = create_train_test_dfs(NCAA_tournament_results, kenpoms, massey_ordinals,
-                                           seeds, season_stats, winrates)
+                                           seeds, season_stats, winrates, lagged_seeds)
 
     categorical_idxs = [0, 1]
     model = CatBoostClassifier(custom_loss=['Logloss'], logging_level='Verbose')
@@ -231,7 +268,7 @@ def train(year=2019, kenpom_lag=False, all_years=False):
         f.write(str(scores))
         f.write('\n')
 
-    return model
+    return model, X_train, y_train, X_test, y_test
 
 
 def train_giant_model(start_year=2011, end_year=2019):
@@ -248,31 +285,33 @@ def train_giant_model(start_year=2011, end_year=2019):
         NCAA_season_results = NCAA_season_results[NCAA_season_results['Season'] == year]
 
         season_stats = generate_season_statistics(NCAA_season_results, year)
-
+        # seeds
+        seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
+        seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
+        seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
+        lagged_seeds = lagged_seedscore(seeds, year)
+        seeds = seeds[seeds['Season'] == year]
         # # kenpoms
         # if kenpom_lag:
         #     k_year = year - 1
         # else:
         #     k_year = year
-        kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{year}.csv')
+        try:
+            kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{year}.csv')
+        except Exception:
+            kenpoms = pd.read_csv(f'data/mens/kenpoms_{year}.csv')
         kenpoms['TeamID'] = kenpoms['TeamID'].apply(lambda x: int(x))
 
         # massey ordinals
         massey_ordinals = pd.read_csv('data/mens/MMasseyOrdinals.csv')
         massey_ordinals = massey_ordinals[massey_ordinals['Season'] == year]
 
-        # seeds
-        seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
-        seeds = seeds[seeds['Season'] == year]
-        seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
-        seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
-
         winrates = last_14_day_win_rates(NCAA_season_results)
 
         X_train, y_train = create_train_test_dfs(NCAA_season_results, kenpoms, massey_ordinals,
-                                                 seeds, season_stats, winrates)
+                                                 seeds, season_stats, winrates, lagged_seeds)
         X_test, y_test = create_train_test_dfs(NCAA_tournament_results, kenpoms, massey_ordinals,
-                                               seeds, season_stats, winrates)
+                                               seeds, season_stats, winrates, lagged_seeds)
 
         X_trains.append(X_train)
         y_trains.append(y_train)
@@ -295,24 +334,24 @@ def simulate_oos(year=2019):
     NCAA_season_results = NCAA_season_results[NCAA_season_results['Season'] == year]
 
     season_stats = generate_season_statistics(NCAA_season_results, year)
-    kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{year}.csv')
+    try:
+        kenpoms = pd.read_csv(f'data/mens/PiT_kenpoms_{year}.csv')
+    except Exception:
+        kenpoms = pd.read_csv(f'data/mens/kenpoms_{year}.csv')
     kenpoms['TeamID'] = kenpoms['TeamID'].apply(lambda x: int(x))
     massey_ordinals = pd.read_csv('data/mens/MMasseyOrdinals.csv')
     massey_ordinals = massey_ordinals[massey_ordinals['Season'] == year]
 
     # seeds
-    seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
-    seeds = seeds[seeds['Season'] == year]
-    seeds['seednumber'] = seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
-    seeds['region'] = seeds['Seed'].apply(lambda x: x[0])
+    full_seeds = pd.read_csv('data/mens/MNCAATourneySeeds.csv')
+    full_seeds['seednumber'] = full_seeds['Seed'].apply(lambda x: int(''.join([i for i in x if i.isdigit()])))
+    full_seeds['region'] = full_seeds['Seed'].apply(lambda x: x[0])
+    seeds = full_seeds[full_seeds['Season'] == year]
+    lagged_seeds = lagged_seedscore(full_seeds, year)
     winrates = last_14_day_win_rates(NCAA_season_results)
     X, y = create_train_test_dfs(NCAA_tournament_results, kenpoms, massey_ordinals,
-                                 seeds, season_stats, winrates)
+                                 seeds, season_stats, winrates, lagged_seeds)
     return X, y
-
-
-def predict_oos():
-    pass
 
 
 if __name__ == '__main__':
