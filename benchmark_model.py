@@ -59,10 +59,13 @@ def _get_massey_ordinal(system, team, daynum, massey_ordinals):
             (massey_ordinals['TeamID'] == team) & (massey_ordinals['SystemName'] == system)
             ].groupby('RankingDayNum').idxmax()['OrdinalRank']
     except Exception:
-        massey = \
-            massey_ordinals[(massey_ordinals['TeamID'] == team) &
-                            (massey_ordinals['SystemName'] == system)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
-
+        try:
+            massey = \
+                massey_ordinals[(massey_ordinals['TeamID'] == team) &
+                                (massey_ordinals['SystemName'] == system)].groupby('RankingDayNum').mean().iloc[0]['OrdinalRank']
+        except IndexError:
+            print(f'no pomeroy massey for {team}')
+            massey = massey_ordinals[(massey_ordinals['SystemName'] == system)]['OrdinalRank'].mean()
     if type(massey) == pd.Series:
         massey = massey.iloc[0]
     return massey
